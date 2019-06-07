@@ -1,0 +1,194 @@
+<form>
+  <label>public_Sysmon活用ダッシュボード</label>
+  <fieldset submitButton="false">
+    <input type="time" token="time_token">
+      <label>time</label>
+      <default>
+        <earliest>-15m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="last_host">
+      <label>host</label>
+      <fieldForLabel>host</fieldForLabel>
+      <fieldForValue>host</fieldForValue>
+      <search>
+        <query>sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+|dedup host
+|table host</query>
+        <earliest>-4h@m</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="text" token="last_image">
+      <label>プロセス名</label>
+      <default>*</default>
+    </input>
+    <input type="text" token="last_process_id">
+      <label>プロセスID (e.g. 4768)</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>sysmon相関図v2</title>
+      <viz type="force_directed_viz.force_directed">
+        <title>ParentImage→Imageのプロセス親子関係と、Image→DestinationIpの通信先関係をマッピング</title>
+        <search>
+          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* EventCode=1  host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=ParentImage |eval To=Image
+|append [|search sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=3 NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=DestinationIp]
+|table To From</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="force_directed_viz.force_directed.AttractDistanceMax">200</option>
+        <option name="force_directed_viz.force_directed.AttractDistanceMin">60</option>
+        <option name="force_directed_viz.force_directed.AttractForceStrength">-300</option>
+        <option name="force_directed_viz.force_directed.CollisionIterations">1</option>
+        <option name="force_directed_viz.force_directed.CollisionRadius">20</option>
+        <option name="force_directed_viz.force_directed.CollisionStrength">0.7</option>
+        <option name="force_directed_viz.force_directed.ColorRange1">100</option>
+        <option name="force_directed_viz.force_directed.ColorRange1Code">#65a637</option>
+        <option name="force_directed_viz.force_directed.ColorRange2">500</option>
+        <option name="force_directed_viz.force_directed.ColorRange2Code">#6db7c6</option>
+        <option name="force_directed_viz.force_directed.ColorRange3">1000</option>
+        <option name="force_directed_viz.force_directed.ColorRange3Code">#f7bc38</option>
+        <option name="force_directed_viz.force_directed.ColorRange4">10000</option>
+        <option name="force_directed_viz.force_directed.ColorRange4Code">#f58f39</option>
+        <option name="force_directed_viz.force_directed.ColorRange5">1000000</option>
+        <option name="force_directed_viz.force_directed.ColorRange5Code">#d93f3c</option>
+        <option name="force_directed_viz.force_directed.ForceCollision">20</option>
+        <option name="force_directed_viz.force_directed.LineColor">disabled</option>
+        <option name="force_directed_viz.force_directed.LinkDistance">100</option>
+        <option name="force_directed_viz.force_directed.LinkLength">1</option>
+        <option name="force_directed_viz.force_directed.RepelDistanceMax">50</option>
+        <option name="force_directed_viz.force_directed.RepelDistanceMin">10</option>
+        <option name="force_directed_viz.force_directed.RepelForceStrength">-140</option>
+        <option name="force_directed_viz.force_directed.StrokeWidth">2</option>
+        <option name="force_directed_viz.force_directed.arrows">enabled</option>
+        <option name="force_directed_viz.force_directed.circleSize">8</option>
+        <option name="force_directed_viz.force_directed.panzoom">enabled</option>
+        <option name="force_directed_viz.force_directed.theme">dark</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </viz>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>不審なプロセスID（ProcessId）をクリック</title>
+        <search>
+          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* |table _time ProcessId process dest_ip dest_port</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">cell</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="ProcessId">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <drilldown>
+          <set token="click_pid">$click.value2$</set>
+        </drilldown>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>左でクリックしたプロセス「$click_pid$」の親プロセスを表示</title>
+        <search>
+          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* ProcessId=$click_pid$ ParentProcessId=*
+|table _time ParentProcessId ParentCommandLine</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">cell</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="ParentProcessId">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <drilldown>
+          <link target="ParentProcessId">
+            <![CDATA[sysmonv2?form.last_process_id=$click.value2$&form.last_host=$last_host$]]>
+          </link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Sysmonログによる影響範囲調査</title>
+        <search>
+          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* process=$last_image$ OR ParentCommandLine=$last_image$
+|table _time process ParentCommandLine</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="wrap">true</option>
+        <format type="color" field="process">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="ParentCommandLine">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Map: 外部 IPに頻繁にアクセスするプロセス</title>
+      <map>
+        <search>
+          <query>sourcetype="xmlWinEventLog:Microsoft-Windows-Sysmon/Operational" EventCode=3 
+| iplocation prefix=dest_ DestinationIp
+| geostats latfield=dest_lat longfield=dest_lon count by dest_port</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="mapping.choroplethLayer.colorBins">5</option>
+        <option name="mapping.choroplethLayer.colorMode">sequential</option>
+        <option name="mapping.choroplethLayer.maximumColor">0xDB5800</option>
+        <option name="mapping.choroplethLayer.minimumColor">0x2F25BA</option>
+        <option name="mapping.choroplethLayer.neutralPoint">0</option>
+        <option name="mapping.choroplethLayer.shapeOpacity">0.75</option>
+        <option name="mapping.choroplethLayer.showBorder">1</option>
+        <option name="mapping.data.maxClusters">100</option>
+        <option name="mapping.legend.placement">bottomright</option>
+        <option name="mapping.map.center">(0,0)</option>
+        <option name="mapping.map.panning">1</option>
+        <option name="mapping.map.scrollZoom">0</option>
+        <option name="mapping.map.zoom">2</option>
+        <option name="mapping.markerLayer.markerMaxSize">50</option>
+        <option name="mapping.markerLayer.markerMinSize">10</option>
+        <option name="mapping.markerLayer.markerOpacity">0.8</option>
+        <option name="mapping.showTiles">1</option>
+        <option name="mapping.tileLayer.maxZoom">5</option>
+        <option name="mapping.tileLayer.minZoom">0</option>
+        <option name="mapping.tileLayer.tileOpacity">1</option>
+        <option name="mapping.tileLayer.url">http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png</option>
+        <option name="mapping.type">marker</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </map>
+    </panel>
+  </row>
+</form>
