@@ -39,9 +39,12 @@
       <viz type="force_directed_viz.force_directed">
         <title>ParentImage→Imageのプロセス親子関係と、Image→DestinationIpの通信先関係をマッピング</title>
         <search>
-          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* EventCode=1  host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=ParentImage |eval To=Image
-|append [|search index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=3 NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=DestinationIp]
-|table To From</query>
+          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* (
+          EventCode=1 OR EventCode=3) host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$
+| eval From=if(EventCode==1,ParentImage,Image)
+| eval To=if(EventCode==3,DestinationIP,Image)
+| dedup To From
+| table To From</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
           <sampleRatio>1</sampleRatio>
