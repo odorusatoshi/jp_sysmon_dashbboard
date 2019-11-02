@@ -13,11 +13,11 @@
       <fieldForLabel>host</fieldForLabel>
       <fieldForValue>host</fieldForValue>
       <search>
-        <query>sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
-|dedup host
-|table host</query>
-        <earliest>-4h@m</earliest>
-        <latest>now</latest>
+        <query>| tstats count where index=$index_token$ by host sourcetype
+| where lower(sourcetype) == lower("XmlWinEventLog:Microsoft-Windows-Sysmon/Operational")
+| table host</query>
+          <earliest>0</earliest>
+          <latest></latest>
       </search>
     </input>
     <input type="text" token="last_image">
@@ -28,6 +28,10 @@
       <label>プロセスID (e.g. 4768)</label>
       <default>*</default>
     </input>
+    <input type="text" token="index_token">
+      <label>Index</label>
+      <initialValue>main</initialValue>
+    </input>
   </fieldset>
   <row>
     <panel>
@@ -35,8 +39,8 @@
       <viz type="force_directed_viz.force_directed">
         <title>ParentImage→Imageのプロセス親子関係と、Image→DestinationIpの通信先関係をマッピング</title>
         <search>
-          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* EventCode=1  host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=ParentImage |eval To=Image
-|append [|search sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=3 NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=DestinationIp]
+          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* EventCode=1  host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=ParentImage |eval To=Image
+|append [|search index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=3 NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=DestinationIp]
 |table To From</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
@@ -83,7 +87,7 @@
       <table>
         <title>不審なプロセスID（ProcessId）をクリック</title>
         <search>
-          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* |table _time ProcessId process dest_ip dest_port</query>
+          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* |table _time ProcessId process dest_ip dest_port</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
         </search>
@@ -103,7 +107,7 @@
       <table>
         <title>左でクリックしたプロセス「$click_pid$」の親プロセスを表示</title>
         <search>
-          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* ProcessId=$click_pid$ ParentProcessId=*
+          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* ProcessId=$click_pid$ ParentProcessId=*
 |table _time ParentProcessId ParentCommandLine</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
@@ -128,7 +132,7 @@
       <table>
         <title>Sysmonログによる影響範囲調査</title>
         <search>
-          <query>sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* process=$last_image$ OR ParentCommandLine=$last_image$
+          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* process=$last_image$ OR ParentCommandLine=$last_image$
 |table _time process ParentCommandLine</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
@@ -154,7 +158,7 @@
       <title>Map: 外部 IPに頻繁にアクセスするプロセス</title>
       <map>
         <search>
-          <query>sourcetype="xmlWinEventLog:Microsoft-Windows-Sysmon/Operational" EventCode=3 
+          <query>index=$index_token$ sourcetype="xmlWinEventLog:Microsoft-Windows-Sysmon/Operational" EventCode=3
 | iplocation prefix=dest_ DestinationIp
 | geostats latfield=dest_lat longfield=dest_lon count by dest_port</query>
           <earliest>$time_token.earliest$</earliest>
