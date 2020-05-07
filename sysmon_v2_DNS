@@ -1,6 +1,11 @@
-<form>
-  <label>public_Sysmon活用ダッシュボード</label>
-  <fieldset submitButton="false">
+<form theme="dark">
+  <label>Sysmon活用ダッシュボードv2_DNS対応</label>
+  <description>Sysmon v10以降のdnsクエリログを対応</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="text" token="index_token">
+      <label>Index</label>
+      <default>*</default>
+    </input>
     <input type="time" token="time_token">
       <label>time</label>
       <default>
@@ -16,8 +21,8 @@
         <query>| tstats count where index=$index_token$ by host sourcetype
 | where lower(sourcetype) == lower("XmlWinEventLog:Microsoft-Windows-Sysmon/Operational")
 | table host</query>
-          <earliest>0</earliest>
-          <latest></latest>
+        <earliest>-4h@m</earliest>
+        <latest>now</latest>
       </search>
     </input>
     <input type="text" token="last_image">
@@ -28,23 +33,20 @@
       <label>プロセスID (e.g. 4768)</label>
       <default>*</default>
     </input>
-    <input type="text" token="index_token">
-      <label>Index</label>
-      <initialValue>main</initialValue>
+    <input type="text" token="last_hash">
+      <label>SHA256</label>
+      <default>*</default>
+      <initialValue>DE96A6E69944335375DC1AC238336066889D9FFC7D73628EF4FE1B1B160AB32C</initialValue>
     </input>
   </fieldset>
   <row>
     <panel>
-      <title>sysmon相関図v2</title>
+      <title>ParentImage→Imageのプロセス親子関係と、Image→DestinationIpの通信先関係をマッピング</title>
       <viz type="force_directed_viz.force_directed">
-        <title>ParentImage→Imageのプロセス親子関係と、Image→DestinationIpの通信先関係をマッピング</title>
         <search>
-          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* (
-          EventCode=1 OR EventCode=3) host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$
-| eval From=if(EventCode==1,ParentImage,Image)
-| eval To=if(EventCode==3,DestinationIP,Image)
-| dedup To From
-| table To From</query>
+          <query>(index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" OR source="wineventlog:microsoft-windows-sysmon/operational") NOT process=*lanscope* NOT process=*amazon*.exe* NOT process=*splunk* EventCode=1  host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ SHA256=$last_hash$ |eval From=ParentImage |eval To=Image
+|append [|search (index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" OR source="wineventlog:microsoft-windows-sysmon/operational") EventCode=3 NOT process=*lanscope* NOT process=*amazon*.exe* NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=DestinationIp+":"+DestinationPort+"port"]
+|table To From</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
           <sampleRatio>1</sampleRatio>
@@ -84,13 +86,60 @@
         <option name="trellis.size">medium</option>
       </viz>
     </panel>
+    <panel>
+      <title>Image→DNS Queryと、DNS Query→DNS Resultsの関係をマッピング</title>
+      <viz type="force_directed_viz.force_directed">
+        <search>
+          <query>(index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" OR source="wineventlog:microsoft-windows-sysmon/operational") EventCode=22 NOT process=*lanscope* NOT process=*amazon*.exe* NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=Image |eval To=QueryName
+|append [|search (index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" OR source="wineventlog:microsoft-windows-sysmon/operational") EventCode=22 NOT process=*lanscope* NOT process=*amazon*.exe* NOT process=*splunk* host=$last_host$ Image=$last_image$ ProcessId=$last_process_id$ |eval From=QueryName |eval To="(DNSReults)"+QueryResults]
+|table To From</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="force_directed_viz.force_directed.AttractDistanceMax">200</option>
+        <option name="force_directed_viz.force_directed.AttractDistanceMin">60</option>
+        <option name="force_directed_viz.force_directed.AttractForceStrength">-300</option>
+        <option name="force_directed_viz.force_directed.CollisionIterations">1</option>
+        <option name="force_directed_viz.force_directed.CollisionRadius">30</option>
+        <option name="force_directed_viz.force_directed.CollisionStrength">0.7</option>
+        <option name="force_directed_viz.force_directed.ColorRange1">100</option>
+        <option name="force_directed_viz.force_directed.ColorRange1Code">#65a637</option>
+        <option name="force_directed_viz.force_directed.ColorRange2">500</option>
+        <option name="force_directed_viz.force_directed.ColorRange2Code">#6db7c6</option>
+        <option name="force_directed_viz.force_directed.ColorRange3">1000</option>
+        <option name="force_directed_viz.force_directed.ColorRange3Code">#f7bc38</option>
+        <option name="force_directed_viz.force_directed.ColorRange4">10000</option>
+        <option name="force_directed_viz.force_directed.ColorRange4Code">#f58f39</option>
+        <option name="force_directed_viz.force_directed.ColorRange5">1000000</option>
+        <option name="force_directed_viz.force_directed.ColorRange5Code">#d93f3c</option>
+        <option name="force_directed_viz.force_directed.ForceCollision">20</option>
+        <option name="force_directed_viz.force_directed.LineColor">disabled</option>
+        <option name="force_directed_viz.force_directed.LinkDistance">100</option>
+        <option name="force_directed_viz.force_directed.LinkLength">1</option>
+        <option name="force_directed_viz.force_directed.PanZoom">disabled</option>
+        <option name="force_directed_viz.force_directed.RepelDistanceMax">50</option>
+        <option name="force_directed_viz.force_directed.RepelDistanceMin">10</option>
+        <option name="force_directed_viz.force_directed.RepelForceStrength">-140</option>
+        <option name="force_directed_viz.force_directed.SWRange1">1</option>
+        <option name="force_directed_viz.force_directed.SWRange2">1</option>
+        <option name="force_directed_viz.force_directed.SWRange3">1</option>
+        <option name="force_directed_viz.force_directed.SWRange4">1</option>
+        <option name="force_directed_viz.force_directed.SWRange5">1</option>
+        <option name="force_directed_viz.force_directed.arrows">enabled</option>
+        <option name="force_directed_viz.force_directed.lowerRange">5</option>
+        <option name="force_directed_viz.force_directed.theme">dark</option>
+        <option name="force_directed_viz.force_directed.upperRange">5</option>
+        <option name="refresh.display">progressbar</option>
+      </viz>
+    </panel>
   </row>
   <row>
     <panel>
       <table>
         <title>不審なプロセスID（ProcessId）をクリック</title>
         <search>
-          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT process=*splunk* |table _time ProcessId process dest_ip dest_port</query>
+          <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" OR source="wineventlog:microsoft-windows-sysmon/operational" ProcessId=$last_process_id$ Image=$last_image$ NOT Image=*lanscope* NOT Image=*amazon*.exe* NOT Image=*splunk* |table _time ProcessId Image DestinationIp DestinationPort</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
         </search>
@@ -110,7 +159,7 @@
       <table>
         <title>左でクリックしたプロセス「$click_pid$」の親プロセスを表示</title>
         <search>
-          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* ProcessId=$click_pid$ ParentProcessId=*
+          <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*lanscope* NOT ParentCommandLine=*amazon*.exe* NOT ParentCommandLine=*splunk* ProcessId=$click_pid$ ParentProcessId=*
 |table _time ParentProcessId ParentCommandLine</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
@@ -132,11 +181,28 @@
   </row>
   <row>
     <panel>
+      <viz type="sankey_diagram_app.sankey_diagram">
+        <title>Sankey</title>
+        <search>
+          <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" host=$last_host$  NOT Image=*splunk*.exe
+| stats count by Image ParentImage | sort - count
+|head 30</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </viz>
+    </panel>
+  </row>
+  <row>
+    <panel>
       <table>
         <title>Sysmonログによる影響範囲調査</title>
         <search>
-          <query>index=$index_token$ sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*splunk* process=$last_image$ OR ParentCommandLine=$last_image$
-|table _time process ParentCommandLine</query>
+          <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" NOT ParentCommandLine=*lanscope* NOT ParentCommandLine=*amazon*.exe* NOT ParentCommandLine=*splunk* Image=$last_image$ OR ParentCommandLine=$last_image$ CommandLine=*
+|table _time CommandLine ParentCommandLine
+| sort - _time</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
         </search>
@@ -153,6 +219,10 @@
           <colorPalette type="sharedList"></colorPalette>
           <scale type="sharedCategory"></scale>
         </format>
+        <format type="color" field="CommandLine">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
       </table>
     </panel>
   </row>
@@ -161,11 +231,11 @@
       <title>Map: 外部 IPに頻繁にアクセスするプロセス</title>
       <map>
         <search>
-          <query>index=$index_token$ sourcetype="xmlWinEventLog:Microsoft-Windows-Sysmon/Operational" EventCode=3
+          <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" EventCode=3 
 | iplocation prefix=dest_ DestinationIp
-| geostats latfield=dest_lat longfield=dest_lon count by dest_port</query>
-          <earliest>$time_token.earliest$</earliest>
-          <latest>$time_token.latest$</latest>
+| geostats latfield=dest_lat longfield=dest_lon count by DestinationPort</query>
+          <earliest>-4h@m</earliest>
+          <latest>now</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="drilldown">none</option>
