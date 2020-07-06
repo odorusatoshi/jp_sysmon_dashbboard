@@ -185,8 +185,7 @@
         <title>Sankey</title>
         <search>
           <query>index=$index_token$ source="wineventlog:microsoft-windows-sysmon/operational" host=$last_host$  NOT Image=*splunk*.exe
-| stats count by Image ParentImage | sort - count
-|head 30</query>
+| stats count by ParentImage Image  | sort - count </query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
         </search>
