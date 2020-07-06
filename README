@@ -2,3 +2,4 @@ sysmonログをSplunkに取り込んだ際にどんなセキュリティ調査�
 
 <history>
 2020.05.07 sysmon(DNSクエリ)のEventCode=22にも対応したダッシュボードに改良
+2020.07.06 Panel(Sankey)のサーチを修正
